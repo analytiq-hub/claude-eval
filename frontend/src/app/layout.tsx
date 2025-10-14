@@ -11,8 +11,8 @@ import { ToastContainer } from 'react-toastify';
 import FormioProvider from '@/components/FormioProvider';
 
 export const metadata = {
-  title: 'Smart Document Router',
-  description: 'Smart Document Router',
+  title: 'SigAgent AI',
+  description: 'SigAgent AI',
   icons: {
     icon: '/favicon.ico',
   },

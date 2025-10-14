@@ -7,7 +7,7 @@ const Home = () => {
         {/* Hero Section */}
         <header className="text-center mb-12 hidden md:block">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            <span>Smart Document Router</span>
+            <span>SigAgent AI</span>
           </h1>
           <div className="text-xl text-gray-600 space-y-1">
             <p>AI-powered document processing</p>
