@@ -1168,9 +1168,9 @@ async def get_otlp_status(
     current_user: User = Depends(get_org_user)
 ):
     """Get OTLP status for an organization"""
-    from .otlp_server import otlp_server
+    from .otlp_server import _organization_services
     
-    is_enabled = organization_id in otlp_server.organization_services
+    is_enabled = organization_id in _organization_services
     return {
         "organization_id": organization_id,
         "otlp_enabled": is_enabled,
