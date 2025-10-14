@@ -277,12 +277,29 @@ async def create_org_token(
         raise HTTPException(status_code=403, detail="You are not authorized to create an organization-level API token")
     
     db = ad.common.get_async_db()
-    token = secrets.token_urlsafe(32)
+    
+    # Generate unique token - retry if encrypted token already exists
+    max_retries = 10
+    for attempt in range(max_retries):
+        token = secrets.token_urlsafe(32)
+        encrypted_token = ad.crypto.encrypt_token(token)
+        
+        # Check if this encrypted token already exists
+        existing_token = await db.access_tokens.find_one({"token": encrypted_token})
+        if not existing_token:
+            break
+        
+        if attempt == max_retries - 1:
+            raise HTTPException(
+                status_code=500, 
+                detail="Unable to generate unique token after multiple attempts"
+            )
+    
     new_token = {
         "user_id": current_user.user_id,
         "organization_id": organization_id,
         "name": request.name,
-        "token": ad.crypto.encrypt_token(token),
+        "token": encrypted_token,
         "created_at": datetime.now(UTC),
         "lifetime": request.lifetime
     }
@@ -4746,12 +4763,28 @@ async def create_account_token(
     logger.debug(f"Creating account token for user: {current_user} request: {request}")
     db = ad.common.get_async_db()
 
-    token = secrets.token_urlsafe(32)
+    # Generate unique token - retry if encrypted token already exists
+    max_retries = 10
+    for attempt in range(max_retries):
+        token = secrets.token_urlsafe(32)
+        encrypted_token = ad.crypto.encrypt_token(token)
+        
+        # Check if this encrypted token already exists
+        existing_token = await db.access_tokens.find_one({"token": encrypted_token})
+        if not existing_token:
+            break
+        
+        if attempt == max_retries - 1:
+            raise HTTPException(
+                status_code=500, 
+                detail="Unable to generate unique token after multiple attempts"
+            )
+    
     new_token = {
         "user_id": current_user.user_id,
         "organization_id": None,  # Explicitly set to None for account-level tokens
         "name": request.name,
-        "token": ad.crypto.encrypt_token(token),
+        "token": encrypted_token,
         "created_at": datetime.now(UTC),
         "lifetime": request.lifetime
     }
