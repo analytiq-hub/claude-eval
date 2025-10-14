@@ -48,8 +48,7 @@
     "react-resizable-panels": "^2.1.4",
     "react-table": "^7.8.0",
     "react-toastify": "^11.0.5",
-    "reactflow": "^11.11.4",
-    "docrouter-sdk": "file:../packages/typescript/docrouter-sdk"
+    "reactflow": "^11.11.4"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
