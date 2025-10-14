@@ -6,6 +6,7 @@ import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from docrouter_app.otlp_server import OTLPServer, OTLPTraceService, OTLPMetricsService, OTLPLogsService
+from docrouter_app.auth import get_org_id_from_token
 
 class TestOTLPServer:
     """Test OTLP server functionality"""
@@ -99,25 +100,15 @@ class TestOTLPServer:
             ("other-header", "value")
         ]
         
-        # Mock the database and crypto functions
-        with patch('analytiq_data.crypto.encrypt_token') as mock_encrypt:
-            with patch('analytiq_data.common.get_async_db') as mock_get_db:
-                mock_encrypt.return_value = "encrypted-token"
-                
-                # Mock database response
-                mock_db = AsyncMock()
-                mock_db.access_tokens.find_one.return_value = {
-                    "organization_id": "test-org-123",
-                    "user_id": "user-123"
-                }
-                mock_get_db.return_value = mock_db
-                
-                organization_id = await server.get_organization_from_token(context)
-                assert organization_id == "test-org-123"
-                
-                # Verify the token was encrypted and queried
-                mock_encrypt.assert_called_once_with("test-token-123")
-                mock_db.access_tokens.find_one.assert_called_once_with({"token": "encrypted-token"})
+        # Mock the centralized auth function
+        with patch('docrouter_app.auth.get_org_id_from_token') as mock_get_org_id:
+            mock_get_org_id.return_value = "test-org-123"
+            
+            organization_id = await server.get_organization_from_token(context)
+            assert organization_id == "test-org-123"
+            
+            # Verify the auth function was called with the correct token
+            mock_get_org_id.assert_called_once_with("test-token-123")
     
     @pytest.mark.asyncio
     async def test_get_organization_from_token_no_bearer(self):
@@ -144,6 +135,45 @@ class TestOTLPServer:
             ("authorization", "Bearer invalid-token"),
         ]
         
+        # Mock the centralized auth function
+        with patch('docrouter_app.auth.get_org_id_from_token') as mock_get_org_id:
+            mock_get_org_id.return_value = None
+            
+            organization_id = await server.get_organization_from_token(context)
+            assert organization_id is None
+            
+            # Verify the auth function was called with the invalid token
+            mock_get_org_id.assert_called_once_with("invalid-token")
+
+class TestAuthFunctions:
+    """Test centralized auth functions"""
+    
+    @pytest.mark.asyncio
+    async def test_get_org_id_from_token_valid(self):
+        """Test getting organization ID from valid token"""
+        # Mock the database and crypto functions
+        with patch('analytiq_data.crypto.encrypt_token') as mock_encrypt:
+            with patch('analytiq_data.common.get_async_db') as mock_get_db:
+                mock_encrypt.return_value = "encrypted-token"
+                
+                # Mock database response
+                mock_db = AsyncMock()
+                mock_db.access_tokens.find_one.return_value = {
+                    "organization_id": "test-org-123",
+                    "user_id": "user-123"
+                }
+                mock_get_db.return_value = mock_db
+                
+                organization_id = await get_org_id_from_token("test-token-123")
+                assert organization_id == "test-org-123"
+                
+                # Verify the token was encrypted and queried
+                mock_encrypt.assert_called_once_with("test-token-123")
+                mock_db.access_tokens.find_one.assert_called_once_with({"token": "encrypted-token"})
+    
+    @pytest.mark.asyncio
+    async def test_get_org_id_from_token_invalid(self):
+        """Test getting organization ID from invalid token"""
         # Mock the database and crypto functions
         with patch('analytiq_data.crypto.encrypt_token') as mock_encrypt:
             with patch('analytiq_data.common.get_async_db') as mock_get_db:
@@ -154,7 +184,26 @@ class TestOTLPServer:
                 mock_db.access_tokens.find_one.return_value = None
                 mock_get_db.return_value = mock_db
                 
-                organization_id = await server.get_organization_from_token(context)
+                organization_id = await get_org_id_from_token("invalid-token")
+                assert organization_id is None
+    
+    @pytest.mark.asyncio
+    async def test_get_org_id_from_token_no_org(self):
+        """Test getting organization ID from token with no organization"""
+        # Mock the database and crypto functions
+        with patch('analytiq_data.crypto.encrypt_token') as mock_encrypt:
+            with patch('analytiq_data.common.get_async_db') as mock_get_db:
+                mock_encrypt.return_value = "encrypted-account-token"
+                
+                # Mock database response - account-level token (no organization)
+                mock_db = AsyncMock()
+                mock_db.access_tokens.find_one.return_value = {
+                    "organization_id": None,
+                    "user_id": "user-123"
+                }
+                mock_get_db.return_value = mock_db
+                
+                organization_id = await get_org_id_from_token("account-token")
                 assert organization_id is None
 
 class TestOTLPTraceService:

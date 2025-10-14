@@ -443,25 +443,9 @@ class OTLPServer:
         
         token = authorization[7:]  # Remove 'Bearer ' prefix
         
-        try:
-            # Import here to avoid circular imports
-            import analytiq_data as ad
-            from bson import ObjectId
-            
-            # Encrypt the token to match how it's stored
-            encrypted_token = ad.crypto.encrypt_token(token)
-            
-            # Query the database for the token
-            db = ad.common.get_async_db()
-            stored_token = await db.access_tokens.find_one({"token": encrypted_token})
-            
-            if stored_token and stored_token.get("organization_id"):
-                return stored_token["organization_id"]
-            
-        except Exception as e:
-            logger.error(f"Error validating token for OTLP: {str(e)}")
-        
-        return None
+        # Use the centralized auth function
+        from .auth import get_org_id_from_token
+        return await get_org_id_from_token(token)
     
     async def start(self):
         """Start the OTLP gRPC server"""

@@ -249,3 +249,28 @@ async def get_admin_or_org_user(
         raise HTTPException(status_code=403, detail="You are not a member of this organization")
 
     return current_user
+
+async def get_org_id_from_token(token: str) -> Optional[str]:
+    """
+    Extract organization ID from an access token.
+    
+    Args:
+        token: The plaintext access token
+        
+    Returns:
+        Organization ID if token is valid and has an organization, None otherwise
+    """
+    try:
+        db = ad.common.get_async_db()
+        encrypted_token = ad.crypto.encrypt_token(token)
+        
+        # Query the database for the token
+        stored_token = await db.access_tokens.find_one({"token": encrypted_token})
+        
+        if stored_token and stored_token.get("organization_id"):
+            return stored_token["organization_id"]
+            
+    except Exception as e:
+        logger.error(f"Error validating token for organization ID: {str(e)}")
+    
+    return None
