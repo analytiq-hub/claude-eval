@@ -356,19 +356,7 @@ def convert_attributes(attributes):
             result[attr.key] = attr.value.bool_value
     return result
 
-# Server management functions
-def add_organization_services(organization_id: str):
-    """Add OTLP services for a specific organization"""
-    _organization_services[organization_id] = {
-        'organization_id': organization_id
-    }
-    logger.info(f"Added OTLP services for organization: {organization_id}")
-
-def remove_organization_services(organization_id: str):
-    """Remove OTLP services for a specific organization"""
-    if organization_id in _organization_services:
-        del _organization_services[organization_id]
-        logger.info(f"Removed OTLP services for organization: {organization_id}")
+# OTLP is always enabled for all organizations - no management needed
 
 def get_organization_from_metadata(context) -> Optional[str]:
     """Extract organization ID from gRPC metadata"""
@@ -465,11 +453,7 @@ class OrganizationRouterTraceService(trace_service_pb2_grpc.TraceServiceServicer
             context.set_details("Organization ID required in Bearer token, metadata, or subdomain")
             return None
         
-        if organization_id not in _organization_services:
-            context.set_code(grpc.StatusCode.NOT_FOUND)
-            context.set_details(f"Organization {organization_id} not found or OTLP not enabled")
-            return None
-        
+        # OTLP is always enabled for all organizations - no need to check
         # Route to organization-specific service
         return await export_traces(request, context, organization_id)
 
@@ -489,11 +473,7 @@ class OrganizationRouterMetricsService(metrics_service_pb2_grpc.MetricsServiceSe
             context.set_details("Organization ID required in Bearer token, metadata, or subdomain")
             return None
         
-        if organization_id not in _organization_services:
-            context.set_code(grpc.StatusCode.NOT_FOUND)
-            context.set_details(f"Organization {organization_id} not found or OTLP not enabled")
-            return None
-        
+        # OTLP is always enabled for all organizations - no need to check
         # Route to organization-specific service
         return await export_metrics(request, context, organization_id)
 
@@ -513,19 +493,8 @@ class OrganizationRouterLogsService(logs_service_pb2_grpc.LogsServiceServicer):
             context.set_details("Organization ID required in Bearer token, metadata, or subdomain")
             return None
         
-        if organization_id not in _organization_services:
-            context.set_code(grpc.StatusCode.NOT_FOUND)
-            context.set_details(f"Organization {organization_id} not found or OTLP not enabled")
-            return None
-        
+        # OTLP is always enabled for all organizations - no need to check
         # Route to organization-specific service
         return await export_logs(request, context, organization_id)
 
-# Convenience functions for backward compatibility
-def add_organization_to_otlp(organization_id: str):
-    """Add an organization to the OTLP server"""
-    add_organization_services(organization_id)
-
-def remove_organization_from_otlp(organization_id: str):
-    """Remove an organization from the OTLP server"""
-    remove_organization_services(organization_id)
+# OTLP is always enabled for all organizations - no management functions needed

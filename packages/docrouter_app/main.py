@@ -134,7 +134,7 @@ from opentelemetry.proto.collector.metrics.v1 import metrics_service_pb2_grpc
 from opentelemetry.proto.collector.logs.v1 import logs_service_pb2_grpc
 
 # Import OTLP server
-from .otlp_server import start_otlp_server, stop_otlp_server, add_organization_to_otlp, remove_organization_from_otlp
+from .otlp_server import start_otlp_server, stop_otlp_server
 
 # Set up the environment variables. This reads the .env file.
 ad.common.setup()
@@ -210,11 +210,11 @@ async def lifespan(app):
     db = ad.common.get_async_db(analytiq_client)
     await init_payments(db)
     
-    # Start OTLP gRPC server
+    # Start OTLP gRPC server (always enabled for all organizations)
     try:
         logger.info("Starting OTLP gRPC server...")
         await start_otlp_server()
-        logger.info("OTLP gRPC server started successfully")
+        logger.info("OTLP gRPC server started successfully - all organizations enabled")
     except Exception as e:
         logger.error(f"OTLP gRPC server startup failed: {e}")
         # Don't raise here as OTLP might not be critical for startup
@@ -1133,51 +1133,20 @@ async def list_telemetry_logs(
     )
 
 
-# OTLP Management Endpoints
-@app.post("/v0/orgs/{organization_id}/otlp/enable", tags=["otlp"])
-async def enable_otlp_for_organization(
-    organization_id: str,
-    current_user: User = Depends(get_org_user)
-):
-    """Enable OTLP gRPC endpoints for an organization"""
-    try:
-        add_organization_to_otlp(organization_id)
-        logger.info(f"Enabled OTLP for organization: {organization_id}")
-        return {"status": "success", "message": f"OTLP enabled for organization {organization_id}"}
-    except Exception as e:
-        logger.error(f"Failed to enable OTLP for organization {organization_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to enable OTLP: {str(e)}")
-
-@app.delete("/v0/orgs/{organization_id}/otlp/disable", tags=["otlp"])
-async def disable_otlp_for_organization(
-    organization_id: str,
-    current_user: User = Depends(get_org_user)
-):
-    """Disable OTLP gRPC endpoints for an organization"""
-    try:
-        remove_organization_from_otlp(organization_id)
-        logger.info(f"Disabled OTLP for organization: {organization_id}")
-        return {"status": "success", "message": f"OTLP disabled for organization {organization_id}"}
-    except Exception as e:
-        logger.error(f"Failed to disable OTLP for organization {organization_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to disable OTLP: {str(e)}")
-
+# OTLP Status Endpoint (OTLP is always enabled for all organizations)
 @app.get("/v0/orgs/{organization_id}/otlp/status", tags=["otlp"])
 async def get_otlp_status(
     organization_id: str,
     current_user: User = Depends(get_org_user)
 ):
-    """Get OTLP status for an organization"""
-    from .otlp_server import _organization_services
-    
-    is_enabled = organization_id in _organization_services
+    """Get OTLP status for an organization (always enabled)"""
     return {
         "organization_id": organization_id,
-        "otlp_enabled": is_enabled,
-        "endpoint": f"grpc://localhost:4317" if is_enabled else None,
+        "otlp_enabled": True,
+        "endpoint": "grpc://localhost:4317",
         "protocol": "grpc",
         "headers": {
-            "organization-id": organization_id
+            "Authorization": "Bearer your-org-token"
         }
     }
 

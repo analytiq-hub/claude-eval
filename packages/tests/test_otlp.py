@@ -6,7 +6,6 @@ import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from docrouter_app.otlp_server import (
-    add_organization_services, remove_organization_services,
     get_organization_from_metadata, get_organization_from_token,
     export_traces, export_metrics, export_logs,
     convert_resource_span, get_metric_type, convert_data_points,
@@ -14,24 +13,7 @@ from docrouter_app.otlp_server import (
 )
 from docrouter_app.auth import get_org_id_from_token
 
-# Test OTLP server functionality
-def test_add_organization_services():
-    """Test adding organization services"""
-    add_organization_services("test-org-123")
-    
-    from docrouter_app.otlp_server import _organization_services
-    assert "test-org-123" in _organization_services
-    assert _organization_services["test-org-123"]["organization_id"] == "test-org-123"
-
-def test_remove_organization_services():
-    """Test removing organization services"""
-    add_organization_services("test-org-123")
-    
-    from docrouter_app.otlp_server import _organization_services
-    assert "test-org-123" in _organization_services
-    
-    remove_organization_services("test-org-123")
-    assert "test-org-123" not in _organization_services
+# Test OTLP server functionality (OTLP is always enabled for all organizations)
 
 def test_get_organization_from_metadata_with_header():
     """Test extracting organization ID from metadata header"""
