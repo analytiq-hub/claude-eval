@@ -7,11 +7,11 @@ const Home = () => {
         {/* Hero Section */}
         <header className="text-center mb-12 hidden md:block">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            <span>SigAgent AI</span>
+            <span>SigAgent</span>
           </h1>
           <div className="text-xl text-gray-600 space-y-1">
-            <p>AI-powered document processing</p>
-            <p>that connects directly to your ERP</p>
+            <p>AI Agent Monitor</p>
+            <p>Claude Code supported, other agents coming soon</p>
           </div>
         </header>
         
@@ -20,18 +20,19 @@ const Home = () => {
           <section className="bg-white rounded-lg shadow-lg p-8 mb-12">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">About</h2>
             <p className="text-gray-600 mb-6">
-              The Smart Document Router transforms unstructured documents into structured ERP data automatically. 
-              It processes incoming documents from multiple sources and enriches them with AI for seamless integration.
+              SigAgent is an AI agent monitoring platform that provides comprehensive telemetry and observability 
+              for AI agents. Currently supporting Claude Code with plans to expand to other AI agents.
             </p>
             
             <div className="bg-gray-50 rounded-lg p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-3">Key Features</h3>
               <ul className="list-disc list-inside text-gray-600 space-y-2">
-                <li>Ingests unstructured docs from faxes, email, and ERPs</li>
-                <li>Autonomous processing with LLMs and NLP</li>
-                <li>Human-in-the-loop design for financial accuracy</li>
-                <li>Direct ERP integration capabilities</li>
-                <li>REST APIs for all functions</li>
+                <li>Real-time telemetry collection via OTLP (OpenTelemetry Protocol)</li>
+                <li>Comprehensive monitoring of traces, metrics, and logs</li>
+                <li>Claude Code integration with automatic agent detection</li>
+                <li>Organization-scoped data isolation and security</li>
+                <li>REST APIs for telemetry data access and management</li>
+                <li>Token-based authentication for secure agent communication</li>
               </ul>
             </div>
           </section>
