@@ -114,6 +114,28 @@ from docrouter_app.payments import (
 import analytiq_data as ad
 from analytiq_data.common.doc import get_mime_type
 
+# OTLP imports
+import grpc
+from concurrent import futures
+from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
+    ExportTraceServiceRequest,
+    ExportTraceServiceResponse,
+)
+from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import (
+    ExportMetricsServiceRequest,
+    ExportMetricsServiceResponse,
+)
+from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import (
+    ExportLogsServiceRequest,
+    ExportLogsServiceResponse,
+)
+from opentelemetry.proto.collector.trace.v1 import trace_service_pb2_grpc
+from opentelemetry.proto.collector.metrics.v1 import metrics_service_pb2_grpc
+from opentelemetry.proto.collector.logs.v1 import logs_service_pb2_grpc
+
+# Import OTLP server
+from .otlp_server import start_otlp_server, stop_otlp_server, add_organization_to_otlp, remove_organization_from_otlp
+
 # Set up the environment variables. This reads the .env file.
 ad.common.setup()
 
@@ -188,9 +210,25 @@ async def lifespan(app):
     db = ad.common.get_async_db(analytiq_client)
     await init_payments(db)
     
+    # Start OTLP gRPC server
+    try:
+        logger.info("Starting OTLP gRPC server...")
+        await start_otlp_server()
+        logger.info("OTLP gRPC server started successfully")
+    except Exception as e:
+        logger.error(f"OTLP gRPC server startup failed: {e}")
+        # Don't raise here as OTLP might not be critical for startup
+    
     yield  # This is where the app runs
     
     # Shutdown code (if any) would go here
+    try:
+        logger.info("Stopping OTLP gRPC server...")
+        await stop_otlp_server()
+        logger.info("OTLP gRPC server stopped successfully")
+    except Exception as e:
+        logger.error(f"Error stopping OTLP gRPC server: {e}")
+    
     # For example: await some_client.close()
 
 # Create the FastAPI app with the lifespan
@@ -1076,6 +1114,55 @@ async def list_telemetry_logs(
         skip=skip,
         limit=limit
     )
+
+
+# OTLP Management Endpoints
+@app.post("/v0/orgs/{organization_id}/otlp/enable", tags=["otlp"])
+async def enable_otlp_for_organization(
+    organization_id: str,
+    current_user: User = Depends(get_org_user)
+):
+    """Enable OTLP gRPC endpoints for an organization"""
+    try:
+        add_organization_to_otlp(organization_id)
+        logger.info(f"Enabled OTLP for organization: {organization_id}")
+        return {"status": "success", "message": f"OTLP enabled for organization {organization_id}"}
+    except Exception as e:
+        logger.error(f"Failed to enable OTLP for organization {organization_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to enable OTLP: {str(e)}")
+
+@app.delete("/v0/orgs/{organization_id}/otlp/disable", tags=["otlp"])
+async def disable_otlp_for_organization(
+    organization_id: str,
+    current_user: User = Depends(get_org_user)
+):
+    """Disable OTLP gRPC endpoints for an organization"""
+    try:
+        remove_organization_from_otlp(organization_id)
+        logger.info(f"Disabled OTLP for organization: {organization_id}")
+        return {"status": "success", "message": f"OTLP disabled for organization {organization_id}"}
+    except Exception as e:
+        logger.error(f"Failed to disable OTLP for organization {organization_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to disable OTLP: {str(e)}")
+
+@app.get("/v0/orgs/{organization_id}/otlp/status", tags=["otlp"])
+async def get_otlp_status(
+    organization_id: str,
+    current_user: User = Depends(get_org_user)
+):
+    """Get OTLP status for an organization"""
+    from .otlp_server import otlp_server
+    
+    is_enabled = organization_id in otlp_server.organization_services
+    return {
+        "organization_id": organization_id,
+        "otlp_enabled": is_enabled,
+        "endpoint": f"grpc://localhost:4317" if is_enabled else None,
+        "protocol": "grpc",
+        "headers": {
+            "organization-id": organization_id
+        }
+    }
 
 # LLM Run Endpoints
 @app.post("/v0/orgs/{organization_id}/llm/run/{document_id}", response_model=LLMRunResponse, tags=["llm"])

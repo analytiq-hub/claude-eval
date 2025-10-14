@@ -67,6 +67,7 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+      - "4317:4317"
     networks:
       - doc-router-network
     deploy:
