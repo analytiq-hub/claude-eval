@@ -91,6 +91,19 @@ from docrouter_app.models import (
     LLMPromptRequest,
     OAuthSignInRequest,
     OAuthSignInResponse,
+    # OpenTelemetry models
+    TelemetryTrace,
+    TelemetryMetric,
+    TelemetryLog,
+    TelemetryTracesUpload,
+    TelemetryMetricsUpload,
+    TelemetryLogsUpload,
+    TelemetryTraceResponse,
+    TelemetryMetricResponse,
+    TelemetryLogResponse,
+    ListTelemetryTracesResponse,
+    ListTelemetryMetricsResponse,
+    ListTelemetryLogsResponse,
 )
 from docrouter_app.payments import payments_router, SPUCreditException
 from docrouter_app.payments import (
@@ -717,6 +730,351 @@ async def get_ocr_metadata(
     return GetOCRMetadataResponse(
         n_pages=metadata["n_pages"],
         ocr_date=metadata["ocr_date"].isoformat()
+    )
+
+# OpenTelemetry Endpoints
+@app.post("/v0/orgs/{organization_id}/telemetry/traces", tags=["telemetry"])
+async def upload_telemetry_traces(
+    organization_id: str,
+    traces_upload: TelemetryTracesUpload = Body(...),
+    current_user: User = Depends(get_org_user)
+):
+    """Upload OpenTelemetry traces"""
+    logger.debug(f"upload_telemetry_traces(): traces: {len(traces_upload.traces)}")
+    
+    # Validate all tag IDs first
+    all_tag_ids = set()
+    for trace in traces_upload.traces:
+        all_tag_ids.update(trace.tag_ids)
+
+    analytiq_client = ad.common.get_analytiq_client()
+    db = ad.common.get_async_db(analytiq_client)
+    
+    if all_tag_ids:
+        # Check if all tags exist and belong to the organization
+        tags_cursor = db.tags.find({
+            "_id": {"$in": [ObjectId(tag_id) for tag_id in all_tag_ids]},
+            "organization_id": organization_id
+        })
+        existing_tags = await tags_cursor.to_list(None)
+        existing_tag_ids = {str(tag["_id"]) for tag in existing_tags}
+        
+        invalid_tags = all_tag_ids - existing_tag_ids
+        if invalid_tags:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid tag IDs: {list(invalid_tags)}"
+            )
+
+    uploaded_traces = []
+    
+    for trace in traces_upload.traces:
+        trace_id = ad.common.create_id()
+        
+        # Calculate span count from resource_spans
+        span_count = 0
+        for resource_span in trace.resource_spans:
+            if "scope_spans" in resource_span:
+                for scope_span in resource_span["scope_spans"]:
+                    if "spans" in scope_span:
+                        span_count += len(scope_span["spans"])
+        
+        trace_metadata = {
+            "_id": ObjectId(trace_id),
+            "trace_id": trace_id,
+            "resource_spans": trace.resource_spans,
+            "span_count": span_count,
+            "upload_date": datetime.now(UTC),
+            "uploaded_by": current_user.user_name,
+            "tag_ids": trace.tag_ids,
+            "metadata": trace.metadata,
+            "organization_id": organization_id
+        }
+        
+        await db.telemetry_traces.insert_one(trace_metadata)
+        uploaded_traces.append({
+            "trace_id": trace_id,
+            "span_count": span_count,
+            "tag_ids": trace.tag_ids,
+            "metadata": trace.metadata
+        })
+    
+    return {"traces": uploaded_traces}
+
+@app.post("/v0/orgs/{organization_id}/telemetry/metrics", tags=["telemetry"])
+async def upload_telemetry_metrics(
+    organization_id: str,
+    metrics_upload: TelemetryMetricsUpload = Body(...),
+    current_user: User = Depends(get_org_user)
+):
+    """Upload OpenTelemetry metrics"""
+    logger.debug(f"upload_telemetry_metrics(): metrics: {len(metrics_upload.metrics)}")
+    
+    # Validate all tag IDs first
+    all_tag_ids = set()
+    for metric in metrics_upload.metrics:
+        all_tag_ids.update(metric.tag_ids)
+
+    analytiq_client = ad.common.get_analytiq_client()
+    db = ad.common.get_async_db(analytiq_client)
+    
+    if all_tag_ids:
+        # Check if all tags exist and belong to the organization
+        tags_cursor = db.tags.find({
+            "_id": {"$in": [ObjectId(tag_id) for tag_id in all_tag_ids]},
+            "organization_id": organization_id
+        })
+        existing_tags = await tags_cursor.to_list(None)
+        existing_tag_ids = {str(tag["_id"]) for tag in existing_tags}
+        
+        invalid_tags = all_tag_ids - existing_tag_ids
+        if invalid_tags:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid tag IDs: {list(invalid_tags)}"
+            )
+
+    uploaded_metrics = []
+    
+    for metric in metrics_upload.metrics:
+        metric_id = ad.common.create_id()
+        
+        metric_metadata = {
+            "_id": ObjectId(metric_id),
+            "metric_id": metric_id,
+            "name": metric.name,
+            "description": metric.description,
+            "unit": metric.unit,
+            "type": metric.type,
+            "data_points": metric.data_points,
+            "data_point_count": len(metric.data_points),
+            "resource": metric.resource,
+            "upload_date": datetime.now(UTC),
+            "uploaded_by": current_user.user_name,
+            "tag_ids": metric.tag_ids,
+            "metadata": metric.metadata,
+            "organization_id": organization_id
+        }
+        
+        await db.telemetry_metrics.insert_one(metric_metadata)
+        uploaded_metrics.append({
+            "metric_id": metric_id,
+            "name": metric.name,
+            "type": metric.type,
+            "data_point_count": len(metric.data_points),
+            "tag_ids": metric.tag_ids,
+            "metadata": metric.metadata
+        })
+    
+    return {"metrics": uploaded_metrics}
+
+@app.post("/v0/orgs/{organization_id}/telemetry/logs", tags=["telemetry"])
+async def upload_telemetry_logs(
+    organization_id: str,
+    logs_upload: TelemetryLogsUpload = Body(...),
+    current_user: User = Depends(get_org_user)
+):
+    """Upload OpenTelemetry logs"""
+    logger.debug(f"upload_telemetry_logs(): logs: {len(logs_upload.logs)}")
+    
+    # Validate all tag IDs first
+    all_tag_ids = set()
+    for log in logs_upload.logs:
+        all_tag_ids.update(log.tag_ids)
+
+    analytiq_client = ad.common.get_analytiq_client()
+    db = ad.common.get_async_db(analytiq_client)
+    
+    if all_tag_ids:
+        # Check if all tags exist and belong to the organization
+        tags_cursor = db.tags.find({
+            "_id": {"$in": [ObjectId(tag_id) for tag_id in all_tag_ids]},
+            "organization_id": organization_id
+        })
+        existing_tags = await tags_cursor.to_list(None)
+        existing_tag_ids = {str(tag["_id"]) for tag in existing_tags}
+        
+        invalid_tags = all_tag_ids - existing_tag_ids
+        if invalid_tags:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid tag IDs: {list(invalid_tags)}"
+            )
+
+    uploaded_logs = []
+    
+    for log in logs_upload.logs:
+        log_id = ad.common.create_id()
+        
+        log_metadata = {
+            "_id": ObjectId(log_id),
+            "log_id": log_id,
+            "timestamp": log.timestamp,
+            "severity": log.severity,
+            "body": log.body,
+            "attributes": log.attributes,
+            "resource": log.resource,
+            "trace_id": log.trace_id,
+            "span_id": log.span_id,
+            "upload_date": datetime.now(UTC),
+            "uploaded_by": current_user.user_name,
+            "tag_ids": log.tag_ids,
+            "metadata": log.metadata,
+            "organization_id": organization_id
+        }
+        
+        await db.telemetry_logs.insert_one(log_metadata)
+        uploaded_logs.append({
+            "log_id": log_id,
+            "timestamp": log.timestamp,
+            "severity": log.severity,
+            "body": log.body,
+            "tag_ids": log.tag_ids,
+            "metadata": log.metadata
+        })
+    
+    return {"logs": uploaded_logs}
+
+@app.get("/v0/orgs/{organization_id}/telemetry/traces", response_model=ListTelemetryTracesResponse, tags=["telemetry"])
+async def list_telemetry_traces(
+    organization_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    tag_ids: str = Query(None, description="Comma-separated list of tag IDs"),
+    name_search: str = Query(None, description="Search term for trace names"),
+    current_user: User = Depends(get_org_user)
+):
+    """List OpenTelemetry traces"""
+    analytiq_client = ad.common.get_analytiq_client()
+    db = ad.common.get_async_db(analytiq_client)
+    
+    # Build query
+    query = {"organization_id": organization_id}
+    
+    if tag_ids:
+        tag_id_list = [tag_id.strip() for tag_id in tag_ids.split(",")]
+        query["tag_ids"] = {"$in": tag_id_list}
+    
+    # Get total count
+    total = await db.telemetry_traces.count_documents(query)
+    
+    # Get traces
+    cursor = db.telemetry_traces.find(query).skip(skip).limit(limit).sort("upload_date", -1)
+    traces = []
+    
+    async for trace in cursor:
+        traces.append(TelemetryTraceResponse(
+            trace_id=trace["trace_id"],
+            span_count=trace["span_count"],
+            upload_date=trace["upload_date"],
+            uploaded_by=trace["uploaded_by"],
+            tag_ids=trace["tag_ids"],
+            metadata=trace["metadata"]
+        ))
+    
+    return ListTelemetryTracesResponse(
+        traces=traces,
+        total=total,
+        skip=skip,
+        limit=limit
+    )
+
+@app.get("/v0/orgs/{organization_id}/telemetry/metrics", response_model=ListTelemetryMetricsResponse, tags=["telemetry"])
+async def list_telemetry_metrics(
+    organization_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    tag_ids: str = Query(None, description="Comma-separated list of tag IDs"),
+    name_search: str = Query(None, description="Search term for metric names"),
+    current_user: User = Depends(get_org_user)
+):
+    """List OpenTelemetry metrics"""
+    analytiq_client = ad.common.get_analytiq_client()
+    db = ad.common.get_async_db(analytiq_client)
+    
+    # Build query
+    query = {"organization_id": organization_id}
+    
+    if tag_ids:
+        tag_id_list = [tag_id.strip() for tag_id in tag_ids.split(",")]
+        query["tag_ids"] = {"$in": tag_id_list}
+    
+    if name_search:
+        query["name"] = {"$regex": name_search, "$options": "i"}
+    
+    # Get total count
+    total = await db.telemetry_metrics.count_documents(query)
+    
+    # Get metrics
+    cursor = db.telemetry_metrics.find(query).skip(skip).limit(limit).sort("upload_date", -1)
+    metrics = []
+    
+    async for metric in cursor:
+        metrics.append(TelemetryMetricResponse(
+            metric_id=metric["metric_id"],
+            name=metric["name"],
+            type=metric["type"],
+            data_point_count=metric["data_point_count"],
+            upload_date=metric["upload_date"],
+            uploaded_by=metric["uploaded_by"],
+            tag_ids=metric["tag_ids"],
+            metadata=metric["metadata"]
+        ))
+    
+    return ListTelemetryMetricsResponse(
+        metrics=metrics,
+        total=total,
+        skip=skip,
+        limit=limit
+    )
+
+@app.get("/v0/orgs/{organization_id}/telemetry/logs", response_model=ListTelemetryLogsResponse, tags=["telemetry"])
+async def list_telemetry_logs(
+    organization_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    tag_ids: str = Query(None, description="Comma-separated list of tag IDs"),
+    severity: str = Query(None, description="Filter by log severity"),
+    current_user: User = Depends(get_org_user)
+):
+    """List OpenTelemetry logs"""
+    analytiq_client = ad.common.get_analytiq_client()
+    db = ad.common.get_async_db(analytiq_client)
+    
+    # Build query
+    query = {"organization_id": organization_id}
+    
+    if tag_ids:
+        tag_id_list = [tag_id.strip() for tag_id in tag_ids.split(",")]
+        query["tag_ids"] = {"$in": tag_id_list}
+    
+    if severity:
+        query["severity"] = severity
+    
+    # Get total count
+    total = await db.telemetry_logs.count_documents(query)
+    
+    # Get logs
+    cursor = db.telemetry_logs.find(query).skip(skip).limit(limit).sort("timestamp", -1)
+    logs = []
+    
+    async for log in cursor:
+        logs.append(TelemetryLogResponse(
+            log_id=log["log_id"],
+            timestamp=log["timestamp"],
+            severity=log["severity"],
+            body=log["body"],
+            upload_date=log["upload_date"],
+            uploaded_by=log["uploaded_by"],
+            tag_ids=log["tag_ids"],
+            metadata=log["metadata"]
+        ))
+    
+    return ListTelemetryLogsResponse(
+        logs=logs,
+        total=total,
+        skip=skip,
+        limit=limit
     )
 
 # LLM Run Endpoints

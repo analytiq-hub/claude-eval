@@ -479,3 +479,111 @@ class OAuthSignInResponse(BaseModel):
     success: bool
     user_id: str
     is_new_user: bool
+
+# OpenTelemetry Models
+class TelemetrySpan(BaseModel):
+    """OpenTelemetry span data"""
+    trace_id: str = Field(..., description="Trace ID")
+    span_id: str = Field(..., description="Span ID")
+    parent_span_id: Optional[str] = Field(None, description="Parent span ID")
+    name: str = Field(..., description="Span name")
+    kind: Optional[str] = Field(None, description="Span kind (CLIENT, SERVER, etc.)")
+    start_time: datetime = Field(..., description="Span start time")
+    end_time: Optional[datetime] = Field(None, description="Span end time")
+    status: Optional[Dict[str, Any]] = Field(None, description="Span status")
+    attributes: Optional[Dict[str, Any]] = Field(None, description="Span attributes")
+    events: Optional[List[Dict[str, Any]]] = Field(None, description="Span events")
+    links: Optional[List[Dict[str, Any]]] = Field(None, description="Span links")
+
+class TelemetryTrace(BaseModel):
+    """OpenTelemetry trace data"""
+    resource_spans: List[Dict[str, Any]] = Field(..., description="Resource spans data")
+    tag_ids: List[str] = Field(default=[], description="Optional list of tag IDs")
+    metadata: Optional[Dict[str, str]] = Field(default={}, description="Optional key-value metadata pairs")
+
+class TelemetryMetric(BaseModel):
+    """OpenTelemetry metric data"""
+    name: str = Field(..., description="Metric name")
+    description: Optional[str] = Field(None, description="Metric description")
+    unit: Optional[str] = Field(None, description="Metric unit")
+    type: str = Field(..., description="Metric type (counter, gauge, histogram, etc.)")
+    data_points: List[Dict[str, Any]] = Field(..., description="Metric data points")
+    resource: Optional[Dict[str, Any]] = Field(None, description="Resource information")
+    tag_ids: List[str] = Field(default=[], description="Optional list of tag IDs")
+    metadata: Optional[Dict[str, str]] = Field(default={}, description="Optional key-value metadata pairs")
+
+class TelemetryLog(BaseModel):
+    """OpenTelemetry log data"""
+    timestamp: datetime = Field(..., description="Log timestamp")
+    severity: Optional[str] = Field(None, description="Log severity level")
+    body: str = Field(..., description="Log message body")
+    attributes: Optional[Dict[str, Any]] = Field(None, description="Log attributes")
+    resource: Optional[Dict[str, Any]] = Field(None, description="Resource information")
+    trace_id: Optional[str] = Field(None, description="Associated trace ID")
+    span_id: Optional[str] = Field(None, description="Associated span ID")
+    tag_ids: List[str] = Field(default=[], description="Optional list of tag IDs")
+    metadata: Optional[Dict[str, str]] = Field(default={}, description="Optional key-value metadata pairs")
+
+class TelemetryTracesUpload(BaseModel):
+    """Upload request for OpenTelemetry traces"""
+    traces: List[TelemetryTrace] = Field(..., description="List of traces to upload")
+
+class TelemetryMetricsUpload(BaseModel):
+    """Upload request for OpenTelemetry metrics"""
+    metrics: List[TelemetryMetric] = Field(..., description="List of metrics to upload")
+
+class TelemetryLogsUpload(BaseModel):
+    """Upload request for OpenTelemetry logs"""
+    logs: List[TelemetryLog] = Field(..., description="List of logs to upload")
+
+class TelemetryTraceResponse(BaseModel):
+    """Response for trace operations"""
+    trace_id: str
+    span_count: int
+    upload_date: datetime
+    uploaded_by: str
+    tag_ids: List[str]
+    metadata: Optional[Dict[str, str]]
+
+class TelemetryMetricResponse(BaseModel):
+    """Response for metric operations"""
+    metric_id: str
+    name: str
+    type: str
+    data_point_count: int
+    upload_date: datetime
+    uploaded_by: str
+    tag_ids: List[str]
+    metadata: Optional[Dict[str, str]]
+
+class TelemetryLogResponse(BaseModel):
+    """Response for log operations"""
+    log_id: str
+    timestamp: datetime
+    severity: Optional[str]
+    body: str
+    upload_date: datetime
+    uploaded_by: str
+    tag_ids: List[str]
+    metadata: Optional[Dict[str, str]]
+
+class ListTelemetryTracesResponse(BaseModel):
+    """Response for listing traces"""
+    traces: List[TelemetryTraceResponse]
+    total: int
+    skip: int
+    limit: int
+
+class ListTelemetryMetricsResponse(BaseModel):
+    """Response for listing metrics"""
+    metrics: List[TelemetryMetricResponse]
+    total: int
+    skip: int
+    limit: int
+
+class ListTelemetryLogsResponse(BaseModel):
+    """Response for listing logs"""
+    logs: List[TelemetryLogResponse]
+    total: int
+    skip: int
+    limit: int
