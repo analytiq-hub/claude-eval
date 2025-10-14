@@ -147,6 +147,20 @@ import {
   DeleteFormSubmissionParams
 } from '@/types/forms';
 import { LLMChatRequest, LLMChatResponse, LLMChatStreamChunk, LLMChatStreamError } from '@/types/llm';
+import {
+  UploadTelemetryTracesParams,
+  UploadTelemetryTracesResponse,
+  UploadTelemetryMetricsParams,
+  UploadTelemetryMetricsResponse,
+  UploadTelemetryLogsParams,
+  UploadTelemetryLogsResponse,
+  ListTelemetryTracesParams,
+  ListTelemetryTracesResponse,
+  ListTelemetryMetricsParams,
+  ListTelemetryMetricsResponse,
+  ListTelemetryLogsParams,
+  ListTelemetryLogsResponse,
+} from '@/types/telemetry';
 
 // These APIs execute from the frontend
 const NEXT_PUBLIC_FASTAPI_FRONTEND_URL = process.env.NEXT_PUBLIC_FASTAPI_FRONTEND_URL || "http://localhost:8000";
@@ -1127,6 +1141,100 @@ export const proxyRequestApi = async (targetUrl: string, options?: {
     data: config.data,
     headers: config.headers
   });
+  return response.data;
+};
+
+// Telemetry APIs
+export const uploadTelemetryTracesApi = async (params: UploadTelemetryTracesParams): Promise<UploadTelemetryTracesResponse> => {
+  const { organizationId, traces } = params;
+  const response = await api.post<UploadTelemetryTracesResponse>(
+    `/v0/orgs/${organizationId}/telemetry/traces`,
+    { traces }
+  );
+  return response.data;
+};
+
+export const uploadTelemetryMetricsApi = async (params: UploadTelemetryMetricsParams): Promise<UploadTelemetryMetricsResponse> => {
+  const { organizationId, metrics } = params;
+  const response = await api.post<UploadTelemetryMetricsResponse>(
+    `/v0/orgs/${organizationId}/telemetry/metrics`,
+    { metrics }
+  );
+  return response.data;
+};
+
+export const uploadTelemetryLogsApi = async (params: UploadTelemetryLogsParams): Promise<UploadTelemetryLogsResponse> => {
+  const { organizationId, logs } = params;
+  const response = await api.post<UploadTelemetryLogsResponse>(
+    `/v0/orgs/${organizationId}/telemetry/logs`,
+    { logs }
+  );
+  return response.data;
+};
+
+export const listTelemetryTracesApi = async (params: ListTelemetryTracesParams): Promise<ListTelemetryTracesResponse> => {
+  const { organizationId, skip, limit, tagIds, nameSearch } = params;
+  const queryParams: Record<string, string | number | undefined> = {
+    skip: skip || 0,
+    limit: limit || 10,
+  };
+  
+  if (tagIds) {
+    queryParams.tag_ids = tagIds;
+  }
+  
+  if (nameSearch) {
+    queryParams.name_search = nameSearch;
+  }
+  
+  const response = await api.get<ListTelemetryTracesResponse>(
+    `/v0/orgs/${organizationId}/telemetry/traces`,
+    { params: queryParams }
+  );
+  return response.data;
+};
+
+export const listTelemetryMetricsApi = async (params: ListTelemetryMetricsParams): Promise<ListTelemetryMetricsResponse> => {
+  const { organizationId, skip, limit, tagIds, nameSearch } = params;
+  const queryParams: Record<string, string | number | undefined> = {
+    skip: skip || 0,
+    limit: limit || 10,
+  };
+  
+  if (tagIds) {
+    queryParams.tag_ids = tagIds;
+  }
+  
+  if (nameSearch) {
+    queryParams.name_search = nameSearch;
+  }
+  
+  const response = await api.get<ListTelemetryMetricsResponse>(
+    `/v0/orgs/${organizationId}/telemetry/metrics`,
+    { params: queryParams }
+  );
+  return response.data;
+};
+
+export const listTelemetryLogsApi = async (params: ListTelemetryLogsParams): Promise<ListTelemetryLogsResponse> => {
+  const { organizationId, skip, limit, tagIds, severity } = params;
+  const queryParams: Record<string, string | number | undefined> = {
+    skip: skip || 0,
+    limit: limit || 10,
+  };
+  
+  if (tagIds) {
+    queryParams.tag_ids = tagIds;
+  }
+  
+  if (severity) {
+    queryParams.severity = severity;
+  }
+  
+  const response = await api.get<ListTelemetryLogsResponse>(
+    `/v0/orgs/${organizationId}/telemetry/logs`,
+    { params: queryParams }
+  );
   return response.data;
 };
 
